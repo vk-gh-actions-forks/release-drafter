@@ -161,6 +161,7 @@ module.exports = (app, { getRouter }) => {
     const targetCommitish = commitish || config['commitish'] || ref
     const {
       'filter-by-commitish': filterByCommitish,
+      'include-pre-releases': includePreReleases,
       'tag-prefix': tagPrefix,
     } = config
 
@@ -178,6 +179,7 @@ module.exports = (app, { getRouter }) => {
       context,
       targetCommitish,
       filterByCommitish,
+      includePreReleases,
       tagPrefix,
     })
 
@@ -265,7 +267,10 @@ function getInput({ config } = {}) {
   }
 }
 
-function setActionOutput(releaseResponse, { body }) {
+function setActionOutput(
+  releaseResponse,
+  { body, resolvedVersion, majorVersion, minorVersion, patchVersion }
+) {
   const {
     data: {
       id: releaseId,
@@ -281,5 +286,9 @@ function setActionOutput(releaseResponse, { body }) {
   if (uploadUrl) core.setOutput('upload_url', uploadUrl)
   if (tagName) core.setOutput('tag_name', tagName)
   if (name) core.setOutput('name', name)
+  if (resolvedVersion) core.setOutput('resolved_version', resolvedVersion)
+  if (majorVersion) core.setOutput('major_version', majorVersion)
+  if (minorVersion) core.setOutput('minor_version', minorVersion)
+  if (patchVersion) core.setOutput('patch_version', patchVersion)
   core.setOutput('body', body)
 }
