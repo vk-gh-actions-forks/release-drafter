@@ -1,3 +1,4 @@
-config-with-yaml-exception.yml
-dist/
-coverage/
+# Markdown only; `!*/` lets the negation reach files below the root.
+*
+!*/
+!*.md

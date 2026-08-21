@@ -5,38 +5,66 @@ template: |
 
   $CHANGES
 
+  ## New Contributors
+
+  $NEW_CONTRIBUTORS
+
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
 
 categories:
   - title: 'Breaking'
-    label: 'type: breaking'
+    semver-increment: 'major'
+    exclusive: true
+    when:
+      conventional:
+        breaking: true
   - title: 'New'
-    label: 'type: feature'
-  - title: 'Bug Fixes'
-    label: 'type: bug'
-  - title: 'Maintenance'
-    label: 'type: maintenance'
-  - title: 'Documentation'
-    label: 'type: docs'
-  - title: 'Other changes'
+    semver-increment: 'minor'
+    exclusive: true
+    when:
+      conventional:
+        type: 'feat'
   - title: 'Dependency Updates'
-    label: 'type: dependencies'
+    semver-increment: 'patch'
+    exclusive: true
+    when:
+      conventional:
+        scopes:
+          - 'deps'
+          - 'deps-dev'
+        types:
+          - 'build'
+          - 'chore'
+          - 'ci'
+          - 'fix'
     collapse-after: 5
-
-version-resolver:
-  major:
-    labels:
-      - 'type: breaking'
-  minor:
-    labels:
-      - 'type: feature'
-  patch:
-    labels:
-      - 'type: bug'
-      - 'type: maintenance'
-      - 'type: docs'
-      - 'type: dependencies'
-      - 'type: security'
-
-exclude-labels:
-  - 'skip-changelog'
+  - title: 'Bug Fixes'
+    semver-increment: 'patch'
+    exclusive: true
+    when:
+      conventional:
+        type: 'fix'
+  - title: 'Maintenance'
+    semver-increment: 'patch'
+    exclusive: true
+    when:
+      conventional:
+        types:
+          - 'build'
+          - 'chore'
+          - 'ci'
+          - 'perf'
+          - 'refactor'
+          - 'revert'
+          - 'style'
+          - 'test'
+  - title: 'Documentation'
+    semver-increment: 'patch'
+    exclusive: true
+    when:
+      conventional:
+        type: 'docs'
+  - title: 'Other changes'
+  - type: 'pre-exclude'
+    when:
+      label: 'skip-changelog'

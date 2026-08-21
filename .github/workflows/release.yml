@@ -1,48 +1,41 @@
 name: Release
+
 on:
   push:
     tags:
       - v*.*.*
 
-env:
-  HUSKY: '0'
+permissions:
+  id-token: write
+  contents: write
 
 jobs:
   build:
+    if: github.repository == 'release-drafter/release-drafter'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '16'
-          cache: yarn
-          registry-url: https://registry.npmjs.org
+          node-version-file: .node-version
+          cache: npm
 
-      - name: yarn install
-        run: yarn install --frozen-lockfile
+      - run: npm ci
 
-      - name: yarn test
-        run: yarn test
+      - name: Run all checks and rebuild artifacts
+        run: npm run all
 
-      - name: Deploy to Heroku
-        env:
-          HEROKU_API_TOKEN: ${{ secrets.HEROKU_API_TOKEN }}
-          HEROKU_APP_NAME: release-drafter
-        run: |
-          git fetch origin master
-          git push https://heroku:$HEROKU_API_TOKEN@git.heroku.com/$HEROKU_APP_NAME.git origin/master:master --force
+      - name: Check for clean working directory
+        run: npm run check:clean
 
-      - name: yarn publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
-        run: yarn publish --access public
+      - name: Publish
+        if: false # Publishing is currently disabled, see https://github.com/release-drafter/release-drafter/pull/1475#discussion_r2901869066
+        run: npm publish # Publishes to npmjs, using package.json's version
 
-      - name: version
+      - name: Parse pushed tag version
         id: version
         run: |
           tag=${GITHUB_REF/refs\/tags\//}
@@ -52,14 +45,13 @@ jobs:
           echo "version=${version}" >> $GITHUB_OUTPUT
           echo "major=${major}" >> $GITHUB_OUTPUT
 
-      - uses: release-drafter/release-drafter@master
+      - name: Publish Release
+        uses: ./
         with:
           version: ${{ steps.version.outputs.version }}
           publish: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: force update major tag
+      - name: Update major tag v${{ steps.version.outputs.major }}
         run: |
           git tag v${{ steps.version.outputs.major }} ${{ steps.version.outputs.tag }} -f
           git push origin refs/tags/v${{ steps.version.outputs.major }} -f
