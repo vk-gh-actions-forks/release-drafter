@@ -1,6 +1,7 @@
 import { builtinModules } from 'node:module'
 import { defaultClientConditions, defaultServerConditions } from 'vite'
 import { defineConfig } from 'vitest/config'
+import { readCoverageThreshold } from './src/scripts/coverage-threshold.ts'
 
 const WORKSPACE_SOURCE_CONDITION = 'release-drafter-source'
 
@@ -37,6 +38,13 @@ export default defineConfig({
       },
       output: {
         format: 'es',
+        // Keep dependency Unicode literals visible to repository scanners while
+        // preserving their runtime values and readable, unminified output.
+        minify: {
+          compress: false,
+          mangle: false,
+          codegen: { asciiOnly: true, removeWhitespace: false },
+        },
         entryFileNames: '[name].js',
         chunkFileNames: 'chunks/[name].js',
         paths: (id) => (builtinModules.includes(id) ? `node:${id}` : id),
@@ -48,12 +56,22 @@ export default defineConfig({
     include: ['src/tests/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
     // Real-forge suites require Docker and unrestricted network access. Keep
     // them opt-in through their dedicated Vitest configurations.
-    exclude: ['**/node_modules/**', '**/dist/**', '**/*.container.test.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/*.container.test.ts',
+      'src/tests/artifacts/**',
+    ],
     testTimeout: 60000,
     setupFiles: ['src/tests/setup.ts'],
     coverage: {
       enabled: true,
       reporter: ['json-summary'],
+      reportOnFailure: true,
+      thresholds: {
+        statements: readCoverageThreshold('COVERAGE_THRESHOLD'),
+        branches: readCoverageThreshold('BRANCH_COVERAGE_THRESHOLD'),
+      },
       include: ['src/**/*.ts', 'packages/*/src/**/*.ts'],
       exclude: [
         'src/tests/**/*.ts',

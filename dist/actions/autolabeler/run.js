@@ -1,24 +1,33 @@
-import { C as core_exports, S as context, T as setFailed, _ as object, a as readActionInputs, c as getGitHubAdapter, i as defineActionInputNames, n as sharedInputSchema, o as writeActionOutputs, p as array, t as composeConfigGet, u as escapeStringRegexp, v as string, w as info, x as Minimatch } from "../../chunks/config.js";
+import { A as info, D as context, E as Minimatch, O as core_exports, S as string, _ as boolean, c as writeActionOutputs, g as array, i as sharedInputSchema, j as setFailed, o as defineActionInputNames, p as escapeStringRegexp, s as readActionInputs, t as composeConfigGet, u as getGitHubAdapter, x as object } from "../../chunks/config.js";
 import process from "node:process";
-//#region packages/autolabeler/src/config/config.schema.ts
-var configSchema = object({ 
-/**
-* Defines pull request label rules.
-* `files` uses glob patterns. `branch`, `title`, and `body` use regular expressions.
-* A rule matches when at least one configured matcher succeeds.
-*/
-autolabeler: array(object({
-	label: string().min(1),
+// packages/autolabeler/src/config/config.schema.ts
+var labelSchema = string().min(1).describe("Backward-compatible single label. Prefer labels for new rules.");
+var labelsSchema = array(string().min(1)).min(1).describe("Labels to add when this rule matches, in configuration order.");
+var ruleSchema = object({
+	labels: labelsSchema.optional(),
+	label: labelSchema.optional(),
+	/** Add these labels only when no ordinary rule matches. */
+	fallback: boolean().optional().default(false),
+	/** Stop evaluating later rules after this rule matches and adds its labels. */
+	"stop-on-match": boolean().optional().default(false),
 	files: array(string().min(1)).optional().default([]),
 	branch: array(string().min(1)).optional().default([]),
 	title: array(string().min(1)).optional().default([]),
 	body: array(string().min(1)).optional().default([])
-})).min(1) }).meta({
+});
+var configSchema = object({
+	"sync-labels": boolean().optional().default(false).describe("Remove configured labels when they are not selected by this run."),
+	/**
+	* Defines pull request label rules.
+	* `files` uses glob patterns. `branch`, `title`, and `body` use regular expressions.
+	* A rule matches when at least one configured matcher succeeds.
+	*/
+	autolabeler: array(ruleSchema.extend({ labels: labelsSchema }).or(ruleSchema.extend({ label: labelSchema })))
+}).meta({
 	title: "JSON schema for Release Drafter's autolabeler action config.",
 	id: "https://github.com/release-drafter/release-drafter/blob/main/autolabeler/schema.json"
 });
-//#endregion
-//#region packages/autolabeler/src/util.ts
+// packages/autolabeler/src/util.ts
 var regexLiteral = /^\/.+\/[AJUXgimsux]*$/;
 var supportedFlags = /* @__PURE__ */ new Set("gimsuy");
 /** Converts a regex literal or plain text matcher into a regular expression. */
@@ -28,15 +37,30 @@ var stringToRegex = (search) => {
 	const flags = [...new Set(search.slice(delimiter + 1))].filter((flag) => supportedFlags.has(flag)).join("");
 	return new RegExp(search.slice(1, delimiter), flags);
 };
-//#endregion
-//#region packages/autolabeler/src/config/parse-config.ts
-/** Compiles configured regex matchers while preserving all other config values. */
+// packages/autolabeler/src/config/validate-config.ts
+/** Validates fallback rules after structural configuration parsing. */
+var validateConfig = (config) => {
+	const fallbacks = config.autolabeler.filter((rule) => rule.fallback);
+	if (fallbacks.length > 1) throw new Error("Only one Autolabeler fallback rule is supported.");
+	const fallback = fallbacks[0];
+	if (fallback?.["stop-on-match"]) throw new Error("An Autolabeler rule cannot enable both 'fallback' and 'stop-on-match'.");
+	if (fallback && [
+		fallback.files,
+		fallback.branch,
+		fallback.title,
+		fallback.body
+	].some((matchers) => matchers.length > 0)) throw new Error("An Autolabeler fallback rule must not specify matchers.");
+};
+// packages/autolabeler/src/config/parse-config.ts
+/** Normalizes label shorthand and compiles configured regex matchers. */
 var parseConfig = (params) => {
+	validateConfig(params.config);
 	const config = structuredClone(params.config);
 	const autolabeler = config.autolabeler.map((rule) => {
 		try {
 			return {
 				...rule,
+				labels: [...rule.labels ?? [], ...rule.label !== void 0 ? [rule.label] : []],
 				branch: rule.branch.map(stringToRegex),
 				title: rule.title.map(stringToRegex),
 				body: rule.body.map(stringToRegex)
@@ -51,8 +75,7 @@ var parseConfig = (params) => {
 		autolabeler
 	};
 };
-//#endregion
-//#region packages/autolabeler/src/path-matcher.ts
+// packages/autolabeler/src/path-matcher.ts
 var trimTrailingUnescapedSpaces = (pattern) => {
 	let end = pattern.length;
 	while (end > 0 && pattern[end - 1] === " ") {
@@ -110,8 +133,7 @@ var createPathMatcher = (patterns) => {
 		return false;
 	};
 };
-//#endregion
-//#region packages/autolabeler/src/match-labels.ts
+// packages/autolabeler/src/match-labels.ts
 var test = (matcher, value) => {
 	matcher.lastIndex = 0;
 	return matcher.test(value);
@@ -121,12 +143,13 @@ var matchesFiles = (patterns, files) => {
 	const matches = createPathMatcher(patterns);
 	return files.some(matches);
 };
-/** Evaluates configured rules in files, branch, title, and body order. */
+/** Evaluates rules in configuration order, stopping on request or adding a fallback. */
 var matchLabels = (params) => {
 	const { config, pullRequest } = params;
 	const labels = /* @__PURE__ */ new Set();
 	const matches = [];
 	for (const rule of config.autolabeler) {
+		if (rule.fallback) continue;
 		const body = pullRequest.body;
 		let matcher;
 		if (matchesFiles(rule.files, pullRequest.files)) matcher = "files";
@@ -134,34 +157,41 @@ var matchLabels = (params) => {
 		else if (rule.title.some((regex) => test(regex, pullRequest.title))) matcher = "title";
 		else if (body != null && rule.body.some((regex) => test(regex, body))) matcher = "body";
 		if (matcher) {
-			labels.add(rule.label);
-			matches.push({
-				label: rule.label,
-				matcher
-			});
+			for (const label of rule.labels) {
+				labels.add(label);
+				matches.push({
+					label,
+					matcher
+				});
+			}
+			if (rule["stop-on-match"]) break;
 		}
+	}
+	const fallback = config.autolabeler.find((rule) => rule.fallback);
+	if (labels.size === 0 && fallback) for (const label of fallback.labels) {
+		labels.add(label);
+		matches.push({
+			label,
+			matcher: "fallback"
+		});
 	}
 	return {
 		labels: [...labels],
 		matches
 	};
 };
-//#endregion
-//#region packages/gh-actions/src/autolabeler/action-metadata.ts
+// packages/gh-actions/src/autolabeler/action-metadata.ts
 var actionInputNames = defineActionInputNames()([
 	"token",
 	"config-name",
 	"dry-run"
 ]);
 var actionOutputNames = ["number", "labels"];
-//#endregion
-//#region packages/gh-actions/src/autolabeler/action-input.schema.ts
+// packages/gh-actions/src/autolabeler/action-input.schema.ts
 var actionInputSchema = object({ "config-name": string().optional().default("release-drafter.yml") }).and(sharedInputSchema);
-//#endregion
-//#region packages/gh-actions/src/autolabeler/get-action-inputs.ts
+// packages/gh-actions/src/autolabeler/get-action-inputs.ts
 var getActionInput = () => actionInputSchema.parse(readActionInputs(actionInputNames));
-//#endregion
-//#region packages/gh-actions/src/autolabeler/get-config.ts
+// packages/gh-actions/src/autolabeler/get-config.ts
 var getConfig = async (configName, token) => {
 	const { config, contexts } = await composeConfigGet(configName, context, token);
 	if (contexts.length > 1) info(`Config was fetched from ${contexts.length} different contexts.`);
@@ -174,8 +204,7 @@ var getConfig = async (configName, token) => {
 		logger: core_exports
 	});
 };
-//#endregion
-//#region packages/gh-actions/src/autolabeler/runner.ts
+// packages/gh-actions/src/autolabeler/runner.ts
 /** Run the Autolabeler action using package-owned config and matching logic. */
 async function run() {
 	try {
@@ -185,23 +214,35 @@ async function run() {
 		if (context.eventName !== "pull_request" && context.eventName !== "pull_request_target") throw new Error(`Event type is wrong. Expected 'pull_request' or 'pull_request_target', received '${context.eventName}'`);
 		const adapter = getGitHubAdapter(input.token);
 		const payload = context.payload;
+		const files = await adapter.findPullRequestChangedFiles({
+			repository: {
+				owner: context.repo.owner,
+				name: context.repo.repo,
+				serverUrl: process.env.GITHUB_SERVER_URL ?? "https://github.com"
+			},
+			number: payload.number
+		});
 		const result = matchLabels({
 			config,
 			pullRequest: {
-				files: await adapter.findPullRequestChangedFiles({
-					repository: {
-						owner: context.repo.owner,
-						name: context.repo.repo,
-						serverUrl: process.env.GITHUB_SERVER_URL ?? "https://github.com"
-					},
-					number: payload.number
-				}),
+				files,
 				branch: payload.pull_request.head.ref,
 				title: payload.pull_request.title,
 				body: payload.pull_request.body
 			}
 		});
 		for (const match of result.matches) info(`Found label for ${match.matcher}: '${match.label}'`);
+		const labelsToRemove = [];
+		if (config["sync-labels"]) {
+			const currentLabels = await adapter.octokit.paginate(adapter.octokit.rest.issues.listLabelsOnIssue, {
+				...context.repo,
+				issue_number: payload.number,
+				per_page: 100
+			});
+			const managedLabels = new Set(config.autolabeler.flatMap((rule) => rule.labels.map((label) => label.toLowerCase())));
+			const selectedLabels = new Set(result.labels.map((label) => label.toLowerCase()));
+			for (const { name } of currentLabels) if (managedLabels.has(name.toLowerCase()) && !selectedLabels.has(name.toLowerCase())) labelsToRemove.push(name);
+		}
 		if (result.labels.length > 0) {
 			if (input["dry-run"]) info(`[dry-run] Would add labels [${result.labels.join(", ")}] to PR #${payload.number}`);
 			else await adapter.octokit.rest.issues.addLabels({
@@ -209,6 +250,15 @@ async function run() {
 				issue_number: payload.number,
 				labels: result.labels
 			});
+		}
+		for (const name of labelsToRemove) if (input["dry-run"]) info(`[dry-run] Would remove label '${name}' from PR #${payload.number}`);
+		else {
+			await adapter.octokit.rest.issues.removeLabel({
+				...context.repo,
+				issue_number: payload.number,
+				name
+			});
+			info(`Removed label '${name}' from PR #${payload.number}`);
 		}
 		writeActionOutputs(actionOutputNames, {
 			number: payload.number.toString(),
@@ -218,10 +268,8 @@ async function run() {
 		if (error instanceof Error) setFailed(error.message);
 	}
 }
-//#endregion
-//#region packages/gh-actions/src/autolabeler/run.ts
+// packages/gh-actions/src/autolabeler/run.ts
 /*! release-drafter-action-entry:autolabeler */
 /* node:coverage ignore file -- @preserve */
 await run();
-//#endregion
 export {};

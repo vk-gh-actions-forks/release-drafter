@@ -3,6 +3,7 @@ import {
   array,
   boolean,
   literal,
+  never,
   number,
   object,
   string,
@@ -237,6 +238,17 @@ const categorySchema = object({
 export const categorySchemaDefaults = categorySchema.parse({})
 export type CategoryConfig = z.input<typeof categorySchema>
 
+export const groupChangeSchema = object({
+  /**
+   * A regular expression literal, such as `/^Bump (?<group>.+) from (?<from>\S+) to (?<to>\S+)$/`, matched against the pull request title. A `group` capture group is required and holds the value changes are grouped by. Every further `group_<name>` capture group extends the value, so that changes are merged only when all of them match.
+   */
+  pattern: string().min(1),
+  /**
+   * The template to use for `$TITLE` of a merged entry. Expands `$GROUP`, every `$GROUP_<NAME>` and, for every other capture group, `$FIRST_<NAME>` and `$LAST_<NAME>`.
+   */
+  'title-template': string().min(1),
+})
+
 export const exclusiveConfigSchema = object({
   /**
    * The template to use for each merged change.
@@ -249,6 +261,10 @@ export const exclusiveConfigSchema = object({
    */
   'change-author-template': string().optional().default('$AUTHOR_MENTION'),
   /**
+   * Exclude bot co-authors from `$AUTHORS`. Pull request authors are always retained.
+   */
+  'change-authors-exclude-bots': boolean().optional().default(false),
+  /**
    * The separator to use between authors in `$AUTHORS`.
    */
   'change-authors-separator': string().optional().default(', '),
@@ -260,6 +276,10 @@ export const exclusiveConfigSchema = object({
    * Characters to escape in `$TITLE` when inserting into `change-template` so that they are not interpreted as Markdown format characters.
    */
   'change-title-escapes': string().optional(),
+  /**
+   * Characters to escape in `$BODY` when inserting into `change-template`. Uses title escaping rules with multiline backtick matches.
+   */
+  'change-body-escapes': string().optional(),
   /**
    * The template to use for when there’s no changes.
    */
@@ -351,13 +371,40 @@ export const exclusiveConfigSchema = object({
    * Search and replace content in the generated changelog body.
    */
   replacers: array(
-    object({
-      search: string().min(1),
-      replace: string().min(0),
-    }),
+    union([
+      object({
+        search: string().min(1),
+        replace: string().min(0),
+        section: never().optional(),
+        /**
+         * Where to apply the replacer. Defaults to `global`, the generated release body. Change title/body targets run before escaping.
+         */
+        target: zenum(['global', 'change-body', 'change-title']).optional(),
+        /**
+         * When search does not match, retain the current input (`full`, the default) or replace it with an empty string.
+         */
+        'not-found': zenum(['empty', 'full']).optional(),
+      }),
+      object({
+        /** Select the section under an ATX heading, such as `## Release information`. */
+        section: string().regex(
+          /^#{1,6}[ \t]+(?=[^\r\n]*[^# \t\r\n])\S[^\r\n]*$/,
+          'Use a nonempty ATX heading, such as ## Release information',
+        ),
+        target: literal('change-body'),
+        search: never().optional(),
+        replace: never().optional(),
+        'not-found': zenum(['empty', 'full']).optional(),
+      }),
+    ]),
   )
     .optional()
     .default([]),
+
+  /**
+   * Group changes whose titles share the same `group` into a single changelog entry.
+   */
+  'group-changes': array(groupChangeSchema).optional().default([]),
 
   /**
    * Categorize changes

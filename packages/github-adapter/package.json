@@ -1,6 +1,6 @@
 {
   "name": "@release-drafter/github-adapter",
-  "version": "7.7.0",
+  "version": "7.10.0",
   "description": "Authentication-bound GitHub adapter for Release Drafter core.",
   "type": "module",
   "engines": {
@@ -24,19 +24,18 @@
     "test:run": "vitest run --config ../../vite.workspace.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "license": "MIT",
+  "license": "ISC",
   "private": true,
   "dependencies": {
     "@graphql-typed-document-node/core": "^3.2.0",
-    "@octokit/core": "^7.0.6",
+    "@octokit/core": "^7.0.8",
     "@octokit/plugin-paginate-graphql": "^6.0.0",
-    "@octokit/plugin-paginate-rest": "^14.0.0",
-    "@octokit/plugin-rest-endpoint-methods": "^17.0.0",
-    "@octokit/plugin-retry": "^8.1.0",
-    "@release-drafter/core": "*",
-    "undici": "^7.29.0"
+    "@octokit/plugin-paginate-rest": "^16.0.0",
+    "@octokit/plugin-rest-endpoint-methods": "^18.0.0",
+    "@octokit/plugin-retry": "^8.1.1",
+    "@release-drafter/core": "*"
   },
   "devDependencies": {
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.5"
   }
 }

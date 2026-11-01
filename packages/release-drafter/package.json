@@ -1,6 +1,6 @@
 {
   "name": "release-drafter",
-  "version": "7.7.0",
+  "version": "7.10.0",
   "description": "Programmatic API and command-line interface for Release Drafter.",
   "type": "module",
   "homepage": "https://github.com/release-drafter/release-drafter",
@@ -46,12 +46,11 @@
   },
   "dependencies": {
     "@gitbeaker/rest": "43.8.0",
-    "@octokit/core": "^7.0.6",
+    "@octokit/core": "^7.0.8",
     "@octokit/plugin-paginate-graphql": "^6.0.0",
-    "@octokit/plugin-paginate-rest": "^14.0.0",
-    "@octokit/plugin-rest-endpoint-methods": "^17.0.0",
-    "@octokit/plugin-retry": "^8.1.0",
-    "undici": "^7.29.0"
+    "@octokit/plugin-paginate-rest": "^16.0.0",
+    "@octokit/plugin-rest-endpoint-methods": "^18.0.0",
+    "@octokit/plugin-retry": "^8.1.1"
   },
   "devDependencies": {
     "@release-drafter/cli": "*",
@@ -60,7 +59,7 @@
     "@release-drafter/gitea-adapter": "*",
     "@release-drafter/github-adapter": "*",
     "@release-drafter/gitlab-adapter": "*",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.5"
   },
   "license": "ISC",
   "publishConfig": {

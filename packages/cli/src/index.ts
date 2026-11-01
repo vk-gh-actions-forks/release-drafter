@@ -7,11 +7,14 @@ import process from 'node:process'
 import { parseArgs } from 'node:util'
 import {
   type CommonConfig,
+  createLocalConfigFileReader,
   type DraftReleaseResult,
   draftRelease,
   evaluatePullRequest,
   type ForgeAdapter,
+  type LocalConfigFileReader,
   type Logger,
+  loadConfig,
   mergeInputAndConfig,
   type ParsedConfig,
   type PullRequestReader,
@@ -29,11 +32,6 @@ import {
   type GitLabAdapterOptions,
 } from '@release-drafter/gitlab-adapter'
 import type { RestAdapterOptions } from '@release-drafter/rest-adapter'
-import { loadConfig } from './config.ts'
-import {
-  createLocalConfigFileReader,
-  type LocalConfigFileReader,
-} from './local-config-file.ts'
 export const CLI_PACKAGE_NAME = '@release-drafter/cli' as const
 export const CLI_VERSION = '7.7.0'
 
@@ -523,6 +521,7 @@ const resultDocument = (result: DraftReleaseResult) => {
     latest: payload.makeLatest,
     dry_run: dryRun,
     body: payload.body,
+    labels: result.labels,
   }
 }
 
@@ -533,6 +532,7 @@ const pullRequestResultDocument = (
   action: 'check-pr' as const,
   number: pullRequest.number,
   title: pullRequest.title,
+  labels: evaluation.labels,
   status: evaluation.skipped
     ? ('skipped' as const)
     : evaluation.valid
@@ -645,7 +645,7 @@ export async function runCli(
         serverUrl: options.serverUrl,
         apiUrl: adapterApiUrl,
         ...(options.forge === 'github'
-          ? { graphqlUrl: adapterGraphqlUrl, env }
+          ? { graphqlUrl: adapterGraphqlUrl }
           : {}),
         logger,
       },

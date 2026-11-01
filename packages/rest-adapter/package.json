@@ -1,6 +1,6 @@
 {
   "name": "@release-drafter/rest-adapter",
-  "version": "7.7.0",
+  "version": "7.10.0",
   "description": "Bounded GitHub-compatible REST protocol mechanics for Release Drafter forge adapters.",
   "type": "module",
   "engines": {
@@ -24,12 +24,12 @@
     "test:run": "vitest run --config ../../vite.workspace.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "license": "MIT",
+  "license": "ISC",
   "private": true,
   "dependencies": {
     "@release-drafter/core": "*"
   },
   "devDependencies": {
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.5"
   }
 }

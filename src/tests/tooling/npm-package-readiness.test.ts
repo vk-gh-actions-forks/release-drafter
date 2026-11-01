@@ -97,57 +97,45 @@ describe('npm package readiness', () => {
     }
   })
 
-  it('uses a SHA-pinned, least-privilege PR, main-push, and manual workflow', () => {
+  it('runs package readiness without publishing credentials', () => {
     const contents = readFileSync(
-      join(repositoryRoot, '.github/workflows/npm-package-readiness.yml'),
+      join(repositoryRoot, '.github/workflows/ci.yml'),
+      'utf8',
+    )
+    const workflow = parseYaml(contents)
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+    expect(JSON.stringify(workflow.jobs['package-readiness'])).not.toMatch(
+      /id-token|registry-url|NODE_AUTH_TOKEN|NPM_TOKEN|secrets\.|cache:/u,
+    )
+  })
+
+  it('publishes only the facade through the approved OIDC environment', () => {
+    const contents = readFileSync(
+      join(repositoryRoot, '.github/workflows/npm-publish.yml'),
       'utf8',
     )
     const workflow = parseYaml(contents) as {
-      on?: Record<string, unknown>
-      permissions?: Record<string, string>
-      jobs?: Record<
+      permissions: Record<string, string>
+      jobs: Record<
         string,
         {
-          'runs-on'?: string
-          'timeout-minutes'?: number
-          steps?: Array<{
-            run?: string
-            uses?: string
-            with?: Record<string, unknown>
-          }>
+          environment?: string
+          steps: Array<{ run?: string; 'working-directory'?: string }>
         }
       >
     }
-    const job = workflow.jobs?.['package-readiness']
-    const steps = job?.steps ?? []
-
-    expect(Object.keys(workflow.on ?? {}).sort()).toEqual([
-      'pull_request',
-      'push',
-      'workflow_dispatch',
-    ])
-    expect(workflow.on?.push).toEqual({ branches: ['main'] })
-    expect(workflow.permissions).toEqual({ contents: 'read' })
-    expect(job?.['runs-on']).toBe('ubuntu-latest')
-    expect(job?.['timeout-minutes']).toBe(15)
-    expect(contents).not.toMatch(
-      /id-token|registry-url|NODE_AUTH_TOKEN|NPM_TOKEN|secrets\.|cache:/u,
+    expect(workflow.permissions).toEqual({
+      contents: 'read',
+      'id-token': 'write',
+    })
+    expect(workflow.jobs.publish?.environment).toBe('npm')
+    const publishSteps = workflow.jobs.publish?.steps.filter(({ run }) =>
+      /\bnpm (?:stage )?publish\b/u.test(run ?? ''),
     )
-    expect(steps.flatMap(({ uses }) => (uses ? [uses] : []))).toEqual([
-      'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0',
-      'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
-    ])
-    expect(steps[1]?.with).toEqual({ 'node-version-file': '.node-version' })
-
-    const installNpm = steps.findIndex(
-      ({ run }) => run === 'npm install --global npm@12.0.1 --ignore-scripts',
+    expect(publishSteps).toHaveLength(1)
+    expect(publishSteps?.[0]?.['working-directory']).toBe(
+      'packages/release-drafter',
     )
-    const npmCi = steps.findIndex(({ run }) => run === 'npm ci')
-    expect(installNpm).toBeGreaterThan(-1)
-    expect(npmCi).toBeGreaterThan(installNpm)
-    expect(
-      steps.find(({ run }) => run === 'npm run test:package-readiness'),
-    ).toBeDefined()
-    expect(steps.find(({ run }) => run === 'npm run check:clean')).toBeDefined()
+    expect(contents).not.toMatch(/NODE_AUTH_TOKEN|NPM_TOKEN|secrets\./u)
   })
 })

@@ -1,6 +1,6 @@
-import { S as context, T as setFailed, _ as object, a as readActionInputs, c as getGitHubAdapter, i as defineActionInputNames, l as getRepository, n as sharedInputSchema, o as writeActionOutputs, s as actionLogger, u as escapeStringRegexp, v as string, w as info, y as stringbool } from "../../chunks/config.js";
-import { _ as filterPullRequestsByPreCategories, a as COERCE, b as needsPullRequestChangedFiles, c as PRERELEASE_LOOSE, d as formatFullVersion, f as parse, g as evaluateCategories, h as commonConfigSchema, i as satisfies, l as compareIdentifiers, m as tryParse$1, n as mergeInputAndConfig, o as COERCE_FULL, p as safeRegex, r as normalizeRange, s as PRERELEASE, t as getReleaseDrafterConfig, u as formatComparableVersion, v as getChangelogCategories, y as getVersionResolverCategories } from "../../chunks/get-release-drafter-config.js";
-//#region node_modules/verkit/dist/version-CQ98ZBpL.js
+import { A as info, C as stringbool, D as context, S as string, c as writeActionOutputs, d as getRepository, f as noopLogger, i as sharedInputSchema, j as setFailed, l as actionLogger, o as defineActionInputNames, p as escapeStringRegexp, s as readActionInputs, u as getGitHubAdapter, x as object } from "../../chunks/config.js";
+import { _ as filterPullRequestsByPreCategories, a as COERCE, c as PRERELEASE_LOOSE, d as formatFullVersion, f as parse, g as evaluateCategories, h as commonConfigSchema, i as satisfies, l as compareIdentifiers, m as tryParse$1, n as mergeInputAndConfig, o as COERCE_FULL, p as safeRegex, r as normalizeRange, s as PRERELEASE, t as getReleaseDrafterConfig, u as formatComparableVersion, v as getChangelogCategories, x as needsPullRequestChangedFiles, y as getVersionResolverCategories } from "../../chunks/get-release-drafter-config.js";
+// node_modules/verkit/dist/version-Co1j9Tpq.js
 var COERCE_EXACT = safeRegex(COERCE);
 var COERCE_FULL_EXACT = safeRegex(COERCE_FULL);
 var PRERELEASE_EXACT = safeRegex(`^${PRERELEASE}$`);
@@ -102,6 +102,7 @@ function incrementMutable(version, release, identifier, identifierBase) {
 			if (!version.prerelease?.length) version.patch++;
 			version.prerelease = void 0;
 			break;
+		/* v8 ignore next */
 		case "pre":
 			incrementPrerelease(version, identifier, identifierBase);
 			break;
@@ -147,8 +148,7 @@ function getPrerelease(version, options = {}) {
 	const parsed = tryParse$1(version, options);
 	return parsed ? [...parsed.prerelease || []] : null;
 }
-//#endregion
-//#region packages/core/src/release/categorize-pull-requests.ts
+// packages/core/src/release/categorize-pull-requests.ts
 var categorizePullRequests = (params) => {
 	const { pullRequests, config } = params;
 	const changelogCategories = getChangelogCategories(config.categories);
@@ -171,8 +171,55 @@ var categorizePullRequests = (params) => {
 	}
 	return [uncategorizedPullRequests, categorizedPullRequests];
 };
-//#endregion
-//#region packages/core/src/release/render-template/util/charCode.ts
+// packages/core/src/release/render-template/select-section.ts
+var parseHeading = (line) => {
+	const match = /^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/.exec(line);
+	if (!match) return void 0;
+	return {
+		depth: match[1].length,
+		text: (match[2] ?? "").replace(/(?:^|[ \t]+)#+[ \t]*$/, "").trim()
+	};
+};
+/** Selects the first matching hash-style section, preserving its raw contents and line endings. */
+var selectSection = (input, selector) => {
+	const selected = parseHeading(selector);
+	if (!selected || !selected.text) throw new Error("Section selectors must be nonempty hash-style headings, such as ## Release information");
+	let start;
+	let fence;
+	let inComment = false;
+	for (const match of input.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) {
+		const line = match[0].replace(/(?:\r\n|\r|\n)$/, "");
+		const fenceMatch = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+		if (fence) {
+			if (fenceMatch && fenceMatch[1][0] === fence.character && fenceMatch[1].length >= fence.length && /^[ \t]*$/.test(fenceMatch[2])) fence = void 0;
+			continue;
+		}
+		if (!inComment && fenceMatch && (fenceMatch[1][0] === "~" || !fenceMatch[2].includes("`"))) {
+			fence = {
+				character: fenceMatch[1][0],
+				length: fenceMatch[1].length
+			};
+			continue;
+		}
+		if (inComment || /^ {0,3}<!--/.test(line)) {
+			let offset = 0;
+			while (offset < line.length) {
+				const marker = inComment ? "-->" : "<!--";
+				const index = line.indexOf(marker, offset);
+				if (index === -1) break;
+				inComment = !inComment;
+				offset = index + marker.length;
+			}
+			continue;
+		}
+		const heading = parseHeading(line);
+		if (!heading) continue;
+		if (start !== void 0 && heading.depth <= selected.depth) return input.slice(start, match.index);
+		if (start === void 0 && heading.depth === selected.depth && heading.text === selected.text) start = match.index + match[0].length;
+	}
+	return start === void 0 ? void 0 : input.slice(start);
+};
+// packages/core/src/release/render-template/util/charCode.ts
 var CharCode = /* @__PURE__ */ function(CharCode) {
 	CharCode[CharCode["Backslash"] = 92] = "Backslash";
 	CharCode[CharCode["Tab"] = 9] = "Tab";
@@ -202,8 +249,7 @@ var CharCode = /* @__PURE__ */ function(CharCode) {
 	CharCode[CharCode["u"] = 117] = "u";
 	return CharCode;
 }({});
-//#endregion
-//#region packages/core/src/release/render-template/util/search.ts
+// packages/core/src/release/render-template/util/search.ts
 function containsUppercaseCharacter(target) {
 	if (!target) return false;
 	return target.toLowerCase() !== target;
@@ -233,8 +279,7 @@ function buildReplaceStringForSpecificSpecialCharacter(matches, pattern, special
 	});
 	return replaceString.slice(0, -1);
 }
-//#endregion
-//#region packages/core/src/release/render-template/util/replacePattern.ts
+// packages/core/src/release/render-template/util/replacePattern.ts
 /**
 * Assigned when the replace pattern is entirely static.
 */
@@ -481,28 +526,50 @@ function parseReplaceString(replaceString) {
 	}
 	return result.finalize();
 }
-//#endregion
-//#region packages/core/src/release/render-template/render-template.ts
+// packages/core/src/release/render-template/apply-replacers.ts
+var searchCache = /* @__PURE__ */ new WeakMap();
+var getSearch = (search) => {
+	const cached = searchCache.get(search);
+	if (cached?.source === search.source && cached.flags === search.flags) return cached;
+	const compiled = new RegExp(search);
+	searchCache.set(search, compiled);
+	return compiled;
+};
 var getReplaceMatches = (args) => {
 	const lastArg = args[args.length - 1];
 	const hasGroups = typeof lastArg === "object" && lastArg !== null;
 	const matchCount = args.length - (hasGroups ? 3 : 2);
 	return args.slice(0, matchCount);
 };
-var applyReplacer = (input, replacer) => {
-	const replacePattern = parseReplaceString(replacer.replace);
-	return input.replace(replacer.search, (...args) => {
-		const matches = getReplaceMatches(args);
-		return replacePattern.buildReplaceString(matches);
-	});
+/** Applies the selected target's replacers in configuration order using the shared replacement syntax. */
+var applyReplacers = (input, replacers = [], target = "global") => {
+	for (const replacer of replacers) {
+		if ((replacer.target ?? "global") !== target) continue;
+		if (replacer.section !== void 0) {
+			input = selectSection(input, replacer.section) ?? (replacer["not-found"] === "empty" ? "" : input);
+			continue;
+		}
+		const replacePattern = parseReplaceString(replacer.replace);
+		const search = getSearch(replacer.search);
+		search.lastIndex = 0;
+		let matched = false;
+		input = input.replace(search, (...args) => {
+			matched = true;
+			const matches = getReplaceMatches(args);
+			return replacePattern.buildReplaceString(matches);
+		});
+		if (!matched && replacer["not-found"] === "empty") input = "";
+	}
+	return input;
 };
+// packages/core/src/release/render-template/render-template.ts
 /**
 * replaces all uppercase dollar templates with their string representation from object
 * if replacement is undefined in object the dollar template string is left untouched
 */
 var renderTemplate = (params) => {
 	const { template, object, replacers } = params;
-	let input = template.replace(/(\$[A-Z_]+)/g, (_, k) => {
+	const input = template.replace(/(\$[A-Z_]+)/g, (_, k) => {
 		let result;
 		const isValidKey = (key) => key in object && object[key] !== void 0 && object[key] !== null;
 		if (!isValidKey(k)) result = k;
@@ -515,11 +582,98 @@ var renderTemplate = (params) => {
 		} else result = `${object[k]}`;
 		return result;
 	});
-	if (replacers) for (const replacer of replacers) input = applyReplacer(input, replacer);
-	return input;
+	return applyReplacers(input, replacers);
 };
-//#endregion
-//#region packages/core/src/release/generate-contributors-sentence.ts
+// packages/core/src/release/group-changes.ts
+/**
+* Groups pull requests whose titles match the same `group` of a `group-changes`
+* rule into a single changelog entry. Pull requests are neither mutated nor
+* reordered: a grouped entry takes the place of its newest member.
+*/
+var groupChanges = (params) => {
+	const { pullRequests, rules = [], logger } = params;
+	if (rules.length === 0) return pullRequests.map((pullRequest) => ({
+		pullRequests: [pullRequest],
+		representative: pullRequest,
+		title: pullRequest.title
+	}));
+	const members = /* @__PURE__ */ new Map();
+	const ruleOf = /* @__PURE__ */ new Map();
+	const keys = [];
+	for (const [index, pullRequest] of pullRequests.entries()) {
+		const match = matchRule(pullRequest, rules);
+		if (!match) {
+			const key = `ungrouped ${index}`;
+			keys.push(key);
+			members.set(key, [pullRequest]);
+			continue;
+		}
+		const key = `rule ${match.index} ${JSON.stringify(match.values)}`;
+		const existing = members.get(key);
+		if (existing) {
+			existing.push(pullRequest);
+			continue;
+		}
+		keys.push(key);
+		members.set(key, [pullRequest]);
+		ruleOf.set(key, match.rule);
+	}
+	const positions = new Map(pullRequests.map((pullRequest, index) => [pullRequest, index]));
+	return keys.map((key) => {
+		const grouped = [...members.get(key) ?? []].sort(byMergeOrder);
+		const representative = grouped[grouped.length - 1];
+		const rule = ruleOf.get(key);
+		return {
+			pullRequests: grouped,
+			representative,
+			title: grouped.length > 1 && rule ? groupTitle({
+				pullRequests: grouped,
+				rule,
+				logger
+			}) : representative.title
+		};
+	}).sort((a, b) => (positions.get(a.representative) ?? 0) - (positions.get(b.representative) ?? 0));
+};
+/**
+* Finds the first rule that matches and reads its grouping values. Changes are
+* grouped only when every grouping capture holds the same value, so a bump of
+* the same dependency in another submodule stays a change of its own.
+*/
+var matchRule = (pullRequest, rules) => {
+	for (const [index, rule] of rules.entries()) {
+		const groups = rule.pattern.exec(pullRequest.title)?.groups;
+		if (!groups) continue;
+		const values = rule.groupNames.map((name) => groups[name] ?? "");
+		if (values.some((value) => value.trim())) return {
+			values,
+			index,
+			rule
+		};
+	}
+};
+/** Orders members the way they were merged, oldest first. */
+var byMergeOrder = (a, b) => {
+	if (a.mergedAt && b.mergedAt && a.mergedAt !== b.mergedAt) return a.mergedAt < b.mergedAt ? -1 : 1;
+	return a.number - b.number;
+};
+var groupTitle = (params) => {
+	const { pullRequests, rule, logger } = params;
+	const oldest = rule.pattern.exec(pullRequests[0].title)?.groups ?? {};
+	const newest = rule.pattern.exec(pullRequests[pullRequests.length - 1].title)?.groups ?? {};
+	const object = {};
+	for (const name of rule.groupNames) object[`$${name.toUpperCase()}`] = newest[name] ?? "";
+	for (const name of rule.captureNames) {
+		object[`$FIRST_${name.toUpperCase()}`] = oldest[name] ?? "";
+		object[`$LAST_${name.toUpperCase()}`] = newest[name] ?? "";
+	}
+	const title = renderTemplate({
+		template: rule["title-template"],
+		object
+	});
+	logger?.debug(`Grouped ${pullRequests.map(({ number }) => `#${number}`).join(", ")} into '${title}'`);
+	return title;
+};
+// packages/core/src/release/generate-contributors-sentence.ts
 var botSuffix = "[bot]";
 var pullRequestKey = (pullRequest) => `${pullRequest.baseRepository}#${pullRequest.number}`;
 var normalizeLogin = (login, isBot = false) => isBot && !login.endsWith(botSuffix) ? `${login}${botSuffix}` : login;
@@ -531,9 +685,10 @@ var renderAuthorMention = (contributor, serverUrl) => {
 };
 var generateContributorsSentence = (params) => {
 	const { commits, pullRequests, config, serverUrl } = params;
+	const includedPullRequests = filterPullRequestsByPreCategories(pullRequests, config.categories);
 	return generateAuthorsSentence({
 		commits,
-		pullRequests: filterPullRequestsByPreCategories(pullRequests, config.categories),
+		pullRequests: includedPullRequests,
 		serverUrl,
 		excludeContributors: config["exclude-contributors"],
 		noAuthorsTemplate: config["no-contributors-template"]
@@ -547,10 +702,13 @@ var generateAuthorsSentence = (params) => {
 	const pullRequestAuthorLogins = /* @__PURE__ */ new Set();
 	for (const commit of commits) {
 		if (!includedMergeCommitOids.has(commit.oid) && !commit.associatedPullRequests?.some((pullRequest) => pullRequest && includedPullRequestKeys.has(pullRequestKey(pullRequest)))) continue;
-		for (const author of commit.authors ?? (commit.author ? [commit.author] : [])) if (author?.login) {
-			const login = normalizeLogin(author.login);
-			contributors.set(`login:${login}`, { login });
-		} else if (author?.name) contributors.set(`name:${author.name}`, { name: author.name });
+		for (const author of commit.authors ?? (commit.author ? [commit.author] : [])) {
+			if (params.excludeBots && (author?.type === "Bot" || author?.login?.endsWith(botSuffix))) continue;
+			if (author?.login) {
+				const login = normalizeLogin(author.login);
+				contributors.set(`login:${login}`, { login });
+			} else if (author?.name) contributors.set(`name:${author.name}`, { name: author.name });
+		}
 	}
 	for (const pullRequest of pullRequests) if (pullRequest.author) {
 		const isBot = pullRequest.author.type === "Bot";
@@ -613,9 +771,12 @@ var generateNewContributorsList = (params) => {
 		}
 	})).join("\n");
 };
-//#endregion
-//#region packages/core/src/release/pull-request-to-string.ts
-var pullRequestToString = (params) => params.pullRequests.map((pullRequest) => {
+// packages/core/src/release/pull-request-to-string.ts
+/** Separator between the pull request numbers of `$NUMBERS`. */
+var numbersSeparator = ", ";
+var pullRequestToString = (params) => params.changes.map((change) => {
+	const pullRequest = change.representative;
+	const body = pullRequest.body ?? (params.config.replacers.some((rule) => rule.target === "change-body" && rule.section !== void 0) ? "" : pullRequest.body);
 	let pullAuthor = "ghost";
 	if (pullRequest.author) pullAuthor = pullRequest.author.type === "Bot" ? `[${pullRequest.author.login}[bot]](${pullRequest.author.url})` : pullRequest.author.login;
 	const authorTemplate = params.config["change-author-template"];
@@ -623,15 +784,17 @@ var pullRequestToString = (params) => params.pullRequests.map((pullRequest) => {
 		template: params.config["change-template"],
 		object: {
 			$CATEGORY: params.category ?? "",
-			$TITLE: escapeTitle({
-				title: pullRequest.title,
+			$TITLE: escapeChangeText({
+				text: applyReplacers(change.title, params.config.replacers, "change-title"),
 				escapes: params.config["change-title-escapes"]
 			}),
 			$NUMBER: pullRequest.number.toString(),
+			$NUMBERS: change.pullRequests.map(({ number }) => `#${number}`).join(numbersSeparator),
 			$AUTHORS: generateAuthorsSentence({
 				commits: params.commits,
-				pullRequests: [pullRequest],
+				pullRequests: change.pullRequests,
 				serverUrl: params.serverUrl,
+				excludeBots: params.config["change-authors-exclude-bots"],
 				noAuthorsTemplate: renderTemplate({
 					template: authorTemplate,
 					object: {
@@ -645,31 +808,48 @@ var pullRequestToString = (params) => params.pullRequests.map((pullRequest) => {
 			}),
 			$AUTHOR: pullAuthor,
 			$AUTHOR_URL: pullRequest.author?.url ?? "",
-			$BODY: pullRequest.body,
+			$BODY: escapeChangeText({
+				text: body == null ? body : applyReplacers(body, params.config.replacers, "change-body"),
+				escapes: params.config["change-body-escapes"],
+				multiline: true
+			}),
 			$URL: pullRequest.url,
 			$BASE_REF_NAME: pullRequest.baseRefName,
 			$HEAD_REF_NAME: pullRequest.headRefName
 		}
 	});
 }).join("\n");
-var escapeTitle = (params) => params.title.replace(new RegExp(`[${escapeStringRegexp(params.escapes || "")}]|\`.*?\``, "g"), (match) => {
-	if (match.length > 1) return match;
-	if (match === "@" || match === "#") return `${match}<!---->`;
-	return `\\${match}`;
-});
-//#endregion
-//#region packages/core/src/release/generate-changelog.ts
+/** Escapes selected characters, skipping backtick-delimited text unless backticks are selected. */
+var escapeChangeText = (params) => {
+	if (params.text == null || !params.escapes) return params.text;
+	return params.text.replace(new RegExp(`[${escapeStringRegexp(params.escapes)}]|\`.*?\``, params.multiline ? "gs" : "g"), (match, offset, text) => {
+		if (match.length > 1) return match;
+		if (match === "@" || match === "#") return `${match}<!---->`;
+		if (params.multiline && !params.escapes?.includes("\\")) {
+			let start = offset;
+			while (start > 0 && text[start - 1] === "\\") start--;
+			if ((offset - start) % 2 === 1) return match;
+		}
+		return `\\${match}`;
+	});
+};
+// packages/core/src/release/generate-changelog.ts
 var generateChangeLog = (params) => {
-	const { commits = [], pullRequests, serverUrl, config } = params;
+	const { commits = [], logger = noopLogger, pullRequests, serverUrl, config } = params;
 	const [uncategorizedPullRequests, categorizedPullRequests] = categorizePullRequests({
 		pullRequests,
 		config
 	});
 	if (uncategorizedPullRequests.length + categorizedPullRequests.reduce((sum, category) => sum + category.pullRequests.length, 0) === 0) return config["no-changes-template"];
 	const changeLog = [];
+	const toGroupedChanges = (categoryPullRequests) => groupChanges({
+		pullRequests: categoryPullRequests,
+		rules: config["group-changes"],
+		logger
+	});
 	if (uncategorizedPullRequests.length > 0) changeLog.push(pullRequestToString({
+		changes: toGroupedChanges(uncategorizedPullRequests),
 		commits,
-		pullRequests: uncategorizedPullRequests,
 		serverUrl,
 		config
 	}), "\n\n");
@@ -680,21 +860,21 @@ var generateChangeLog = (params) => {
 			object: { $TITLE: category.title }
 		});
 		if (categoryTitle) changeLog.push(categoryTitle, "\n\n");
+		const changes = toGroupedChanges(category.pullRequests);
 		const pullRequestString = pullRequestToString({
 			category: category.title,
+			changes,
 			commits,
-			pullRequests: category.pullRequests,
 			serverUrl,
 			config
 		});
-		if (category["collapse-after"] !== -1 && category.pullRequests.length > category["collapse-after"]) changeLog.push("<details>", "\n", `<summary>${category.pullRequests.length} change${category.pullRequests.length > 1 ? "s" : ""}</summary>`, "\n\n", pullRequestString, "\n", "</details>");
+		if (category["collapse-after"] !== -1 && changes.length > category["collapse-after"]) changeLog.push("<details>", "\n", `<summary>${changes.length} change${changes.length > 1 ? "s" : ""}</summary>`, "\n\n", pullRequestString, "\n", "</details>");
 		else changeLog.push(pullRequestString);
 		if (index + 1 !== nonEmptyCategories.length) changeLog.push("\n\n");
 	}
 	return changeLog.join("").trim();
 };
-//#endregion
-//#region packages/core/src/release/version-descriptor.ts
+// packages/core/src/release/version-descriptor.ts
 var VersionDescriptor = class VersionDescriptor {
 	version = null;
 	major = null;
@@ -762,8 +942,7 @@ var VersionDescriptor = class VersionDescriptor {
 		});
 	}
 };
-//#endregion
-//#region packages/core/src/release/get-version-info.ts
+// packages/core/src/release/get-version-info.ts
 var getVersionInfo = (params) => {
 	const { lastRelease, config, input, logger, versionKeyIncrement: _versionKeyIncrement } = params;
 	logger.info(`Resolving version info based on:`);
@@ -828,8 +1007,7 @@ var getVersionInfo = (params) => {
 		$RESOLVED_VERSION_PRERELEASE: referenceVersion.incremented(_localIncrement).prerelease
 	};
 };
-//#endregion
-//#region packages/core/src/release/last-release-not-found.ts
+// packages/core/src/release/last-release-not-found.ts
 var lastReleaseNotFoundTemplate = `> [!WARNING]
 > Release Drafter could not find a previous **published release** for \`$OWNER/$REPOSITORY\`. This draft was created **without a comparison baseline**.
 
@@ -839,8 +1017,7 @@ var lastReleaseNotFoundTemplate = `> [!WARNING]
 
 If you did not expect this to happen, [open an issue](https://github.com/release-drafter/release-drafter/issues/new?template=previous-published-release-not-found.yml).
 `;
-//#endregion
-//#region packages/core/src/release/render-release-name.ts
+// packages/core/src/release/render-release-name.ts
 /**
 * Renders the release name,
 * based on the input and config.
@@ -859,8 +1036,7 @@ var renderReleaseName = (params) => {
 	logger.debug(`name: ${name}`);
 	return name;
 };
-//#endregion
-//#region packages/core/src/release/render-tag-name.ts
+// packages/core/src/release/render-tag-name.ts
 /**
 * Renders the tag name for the release,
 * based on the input and config.
@@ -879,8 +1055,7 @@ var renderTagName = (params) => {
 	logger.debug(`tag: ${tagName}`);
 	return tagName;
 };
-//#endregion
-//#region packages/core/src/release/resolve-version-increment.ts
+// packages/core/src/release/resolve-version-increment.ts
 var priority = {
 	patch: 1,
 	minor: 2,
@@ -908,8 +1083,7 @@ var resolveVersionKeyIncrement = (params) => {
 	logger.info(`Resolved version increment: ${versionKeyIncrement}`);
 	return versionKeyIncrement;
 };
-//#endregion
-//#region packages/core/src/release/sort-pull-requests.ts
+// packages/core/src/release/sort-pull-requests.ts
 var sortPullRequests = (params) => {
 	const { pullRequests, logger, config: { "sort-by": sortBy, "sort-direction": sortDirection } } = params;
 	const getSortField = sortBy === "title" ? getTitle : getMergedAt;
@@ -942,8 +1116,7 @@ var sortDescending = (a, b) => {
 	if (a < b) return 1;
 	return 0;
 };
-//#endregion
-//#region packages/core/src/release/build-release-payload.ts
+// packages/core/src/release/build-release-payload.ts
 var buildReleasePayload = async (params) => {
 	const { adapter, commits, config, input, lastRelease, logger, newContributorLogins = /* @__PURE__ */ new Set(), pullRequests, repository } = params;
 	logger.info("Building release payload and body...");
@@ -952,7 +1125,7 @@ var buildReleasePayload = async (params) => {
 		config,
 		logger
 	});
-	let body = (config.header || "") + config.template + (!lastRelease ? `\n---\n${renderTemplate({
+	let body = (config.header || "") + config.template + (!lastRelease && !input.from ? `\n---\n${renderTemplate({
 		template: lastReleaseNotFoundTemplate,
 		object: {
 			$OWNER: repository.owner,
@@ -965,6 +1138,7 @@ var buildReleasePayload = async (params) => {
 			$PREVIOUS_TAG: lastRelease?.tagName ?? "",
 			$CHANGES: generateChangeLog({
 				commits,
+				logger,
 				pullRequests: sortedPullRequests,
 				serverUrl: repository.serverUrl,
 				config
@@ -985,21 +1159,31 @@ var buildReleasePayload = async (params) => {
 		},
 		replacers: config.replacers
 	});
+	const versionKeyIncrement = resolveVersionKeyIncrement({
+		pullRequests,
+		config,
+		logger
+	});
 	const versionInfo = getVersionInfo({
 		lastRelease,
 		config,
 		input,
-		versionKeyIncrement: resolveVersionKeyIncrement({
-			pullRequests,
-			config,
-			logger
-		}),
+		versionKeyIncrement,
 		logger
 	});
 	logger.debug(`versionInfo: ${JSON.stringify(versionInfo, null, 2)}`);
-	if (versionInfo) body = renderTemplate({
+	const tag = renderTagName({
+		inputTagName: input.tag,
+		config,
+		versionInfo,
+		logger
+	});
+	body = renderTemplate({
 		template: body,
-		object: versionInfo
+		object: {
+			...versionInfo,
+			$RESOLVED_TAG: tag
+		}
 	});
 	const releasePayload = {
 		name: renderReleaseName({
@@ -1008,12 +1192,7 @@ var buildReleasePayload = async (params) => {
 			versionInfo,
 			logger
 		}),
-		tag: renderTagName({
-			inputTagName: input.tag,
-			config,
-			versionInfo,
-			logger
-		}),
+		tag,
 		body,
 		targetCommitish: await adapter.resolveCommitish({
 			repository,
@@ -1043,8 +1222,7 @@ var buildReleasePayload = async (params) => {
 	logger.info(`  RESOLVED_VERSION_PRERELEASE: ${releasePayload.prereleaseVersion}`);
 	return releasePayload;
 };
-//#endregion
-//#region node_modules/compare-versions/lib/esm/utils.js
+// node_modules/compare-versions/lib/esm/utils.js
 var semver = /^[v^~<>=]*?(\d+)(?:\.([x*]|\d+)(?:\.([x*]|\d+)(?:\.([x*]|\d+))?(?:-([\da-z\-]+(?:\.[\da-z\-]+)*))?(?:\+[\da-z\-]+(?:\.[\da-z\-]+)*)?)?)?$/i;
 var validateAndParse = (version) => {
 	if (typeof version !== "string") throw new TypeError("Invalid argument expected string");
@@ -1073,8 +1251,7 @@ var compareSegments = (a, b) => {
 	}
 	return 0;
 };
-//#endregion
-//#region node_modules/compare-versions/lib/esm/compareVersions.js
+// node_modules/compare-versions/lib/esm/compareVersions.js
 /**
 * Compare [semver](https://semver.org/) version strings to find greater, equal or lesser.
 * This library supports the full semver specification, including comparing versions with different number of digits like `1.0.0`, `1.0`, `1`, and pre-release versions like `1.0.0-alpha`.
@@ -1093,8 +1270,7 @@ var compareVersions = (v1, v2) => {
 	else if (p1 || p2) return p1 ? -1 : 1;
 	return 0;
 };
-//#endregion
-//#region packages/core/src/release-orchestration.ts
+// packages/core/src/release-orchestration.ts
 var stripHeadRef = (commitish) => commitish.replace(/^refs\/heads\//, "");
 var sortReleases = (params) => {
 	const stripTagPrefix = (tagName) => params.tagPrefix && tagName.startsWith(params.tagPrefix) ? tagName.slice(params.tagPrefix.length) : tagName;
@@ -1264,10 +1440,15 @@ var draftRelease = async (params) => {
 			plan,
 			repository
 		}),
-		releasePayload
+		releasePayload,
+		labels: [...new Set(pullRequests.flatMap((pullRequest) => {
+			const evaluation = evaluateCategories(pullRequest, config.categories);
+			return evaluation.included ? evaluation.matchedLabels : [];
+		}))].sort()
 	};
 };
-var actionInputSchema = object({
+// packages/gh-actions/src/drafter/action-input.schema.ts
+var exclusiveInputSchema = object({
 	"config-name": string().optional().default("release-drafter.yml"),
 	/** Ref, tag, branch, or commit SHA used only as the change comparison base. */
 	from: string().optional(),
@@ -1275,9 +1456,9 @@ var actionInputSchema = object({
 	tag: string().optional(),
 	version: string().optional(),
 	publish: stringbool().optional().default(false)
-}).and(sharedInputSchema).and(commonConfigSchema);
-//#endregion
-//#region packages/gh-actions/src/drafter/action-metadata.ts
+}).and(sharedInputSchema);
+var actionInputSchema = exclusiveInputSchema.and(commonConfigSchema);
+// packages/gh-actions/src/drafter/action-metadata.ts
 var actionInputNames = defineActionInputNames()([
 	"config-name",
 	"token",
@@ -1306,20 +1487,18 @@ var actionOutputNames = [
 	"major_version",
 	"minor_version",
 	"patch_version",
-	"body"
+	"body",
+	"labels"
 ];
-//#endregion
-//#region packages/gh-actions/src/drafter/get-action-inputs.ts
+// packages/gh-actions/src/drafter/get-action-inputs.ts
 var getActionInput = () => actionInputSchema.parse(readActionInputs(actionInputNames));
-//#endregion
-//#region packages/gh-actions/src/drafter/get-config.ts
+// packages/gh-actions/src/drafter/get-config.ts
 var getConfig = async (configName, token) => {
 	return getReleaseDrafterConfig(configName, context, token);
 };
-//#endregion
-//#region packages/gh-actions/src/drafter/set-action-output.ts
+// packages/gh-actions/src/drafter/set-action-output.ts
 /** Set every declared Drafter action output from the release result. */
-var setActionOutput = ({ release, releasePayload }) => {
+var setActionOutput = ({ release, releasePayload, labels }) => {
 	info("Set action outputs...");
 	const outputName = release?.name ?? releasePayload.name;
 	const outputTagName = release?.tagName ?? releasePayload.tag;
@@ -1333,12 +1512,12 @@ var setActionOutput = ({ release, releasePayload }) => {
 		major_version: releasePayload.majorVersion || void 0,
 		minor_version: releasePayload.minorVersion || void 0,
 		patch_version: releasePayload.patchVersion || void 0,
-		body: releasePayload.body
+		body: releasePayload.body,
+		labels: JSON.stringify(labels)
 	});
 	info("Outputs set!");
 };
-//#endregion
-//#region packages/gh-actions/src/drafter/runner.ts
+// packages/gh-actions/src/drafter/runner.ts
 var toReleaseInput = (input) => ({
 	...input.from !== void 0 ? { from: input.from } : {},
 	...input.name !== void 0 ? { name: input.name } : {},
@@ -1358,21 +1537,20 @@ async function run() {
 			defaultCommitish: context.ref || context.payload.ref,
 			logger: actionLogger
 		});
-		setActionOutput(await draftRelease({
+		const result = await draftRelease({
 			adapter: getGitHubAdapter(input.token),
 			config,
 			input: toReleaseInput(input),
 			logger: actionLogger,
 			repository: getRepository()
-		}));
+		});
+		setActionOutput(result);
 	} catch (error) {
 		if (error instanceof Error) setFailed(error.message);
 	}
 }
-//#endregion
-//#region packages/gh-actions/src/drafter/run.ts
+// packages/gh-actions/src/drafter/run.ts
 /*! release-drafter-action-entry:drafter */
 /* node:coverage ignore file -- @preserve */
 await run();
-//#endregion
 export {};

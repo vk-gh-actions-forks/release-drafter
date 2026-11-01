@@ -1,6 +1,6 @@
 {
   "name": "@release-drafter/gitea-adapter",
-  "version": "7.7.0",
+  "version": "7.10.0",
   "description": "Private Gitea REST forge adapter for Release Drafter core.",
   "type": "module",
   "engines": {
@@ -24,13 +24,13 @@
     "test:run": "vitest run --config ../../vite.workspace.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "license": "MIT",
+  "license": "ISC",
   "private": true,
   "dependencies": {
     "@release-drafter/core": "*",
     "@release-drafter/rest-adapter": "*"
   },
   "devDependencies": {
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.5"
   }
 }

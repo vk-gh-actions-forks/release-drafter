@@ -5,6 +5,7 @@ import type { ParsedConfig } from '../types.ts'
 import type { CommonConfig } from './common-config.schema.ts'
 import type { Config } from './config.schema.ts'
 import { parseCategories } from './parse-categories.ts'
+import { parseGroupChanges } from './parse-group-changes.ts'
 
 type DeprecatedCategoryConfig = Pick<
   Config,
@@ -59,6 +60,7 @@ export const mergeInputAndConfig = (params: {
     typeof config.prerelease !== 'boolean' ? false : config.prerelease
   const replacers = config.replacers
     .map((replacer) => {
+      if (replacer.section !== undefined) return replacer
       try {
         return { ...replacer, search: stringToRegex(replacer.search) }
       } catch {
@@ -68,6 +70,10 @@ export const mergeInputAndConfig = (params: {
     })
     .filter((replacer) => !!replacer)
   const categories = parseCategories(config, deprecatedCategoryConfig, logger)
+  const groupChanges = parseGroupChanges({
+    groupChanges: config['group-changes'],
+    logger,
+  })
   const parsedConfig = {
     ...config,
     commitish,
@@ -75,6 +81,7 @@ export const mergeInputAndConfig = (params: {
     prerelease,
     replacers,
     categories,
+    'group-changes': groupChanges,
   }
 
   validateParsedConfig(parsedConfig)
@@ -102,13 +109,6 @@ const applyReleaseModeOverrides = (
   input: CommonConfig,
   logger: Logger,
 ) => {
-  if (config.latest && config.prerelease) {
-    logger.warning(
-      "'prerelease' and 'latest' cannot be both true. Switch 'latest' to false - release will be a pre-release.",
-    )
-    config.latest = false
-  }
-
   const hasInputPrerelease = typeof input.prerelease === 'boolean'
   const hasInputPrereleaseIdentifier = !!input['prerelease-identifier']
   if (
@@ -120,6 +120,14 @@ const applyReleaseModeOverrides = (
       `You specified a 'prerelease-identifier' (${config['prerelease-identifier']}), but 'prerelease' is set to false. Switching to true.`,
     )
     config.prerelease = true
+  }
+  if (config.prerelease) {
+    if (config.latest === true) {
+      logger.warning(
+        "'prerelease' and 'latest' cannot be both true. Switch 'latest' to false - release will be a pre-release.",
+      )
+    }
+    config.latest = false
   }
 }
 

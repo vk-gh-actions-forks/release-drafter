@@ -1,6 +1,6 @@
 {
   "name": "@release-drafter/cli",
-  "version": "7.7.0",
+  "version": "7.10.0",
   "description": "Private command-line runtime for Release Drafter.",
   "type": "module",
   "engines": {
@@ -30,13 +30,11 @@
     "@release-drafter/gitea-adapter": "*",
     "@release-drafter/gitlab-adapter": "*",
     "@release-drafter/github-adapter": "*",
-    "@release-drafter/rest-adapter": "*",
-    "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "@release-drafter/rest-adapter": "*"
   },
   "devDependencies": {
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.5"
   },
-  "license": "MIT",
+  "license": "ISC",
   "private": true
 }

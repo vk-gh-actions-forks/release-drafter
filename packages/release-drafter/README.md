@@ -1,4 +1,6 @@
-# release-drafter
+<h1 align="center">
+  <img src="https://raw.githubusercontent.com/release-drafter/release-drafter/main/docs/design/logo.svg" alt="Release Drafter Logo" width="450" />
+</h1>
 
 The public `release-drafter` package provides a forge-neutral programmatic API
 and a command-line interface. It requires Node.js 24 or later.
@@ -152,7 +154,11 @@ pull request valid.
 
 The command exits with `0` for valid or excluded pull requests and `1` for an
 invalid pull request. In JSON mode, it returns the pull request number, title,
-status, validity, skip status, and number of selected categories:
+labels, status, validity, skip status, and number of selected categories.
+`labels` is a JSON array of unique, sorted labels matched by successful
+configuration conditions under Check PR's validation rules. Unrelated labels
+are omitted. For excluded PRs, it contains labels matched by pre-include and
+pre-exclude conditions; invalid PRs can still report matching pre-include labels:
 
 ```sh
 npx release-drafter check-pr owner/repo 123 --json
@@ -175,6 +181,9 @@ The result contains these fields:
 - `id`: release ID, when an existing or written release is available
 - `html_url` and `upload_url`: release URLs when available
 - `tag_name`, `name`, and `body`: the resolved release payload
+- `labels`: a JSON array of unique, sorted labels matched by successful
+  configuration conditions on included PRs. Only labels present on those PRs
+  contribute. Excluded PRs and unrelated labels are omitted; empty results are `[]`
 - `resolved_version`, `major_version`, `minor_version`, `patch_version`, and
   `prerelease_version`: calculated version fields when available
 - `target_commitish`: the resolved release target
@@ -197,7 +206,8 @@ For example:
   "prerelease": false,
   "latest": true,
   "dry_run": true,
-  "body": "## What's Changed\n"
+  "body": "## What's Changed\n",
+  "labels": ["api/user", "feature"]
 }
 ```
 
@@ -274,30 +284,24 @@ origin. A cross-origin endpoint requires an explicit `--token`.
 ## Programmatic API
 
 ```ts
-import {
-  createForgeAdapter,
-  draftRelease,
-  type DraftReleaseConfig,
-  type ForgeAdapter,
-} from 'release-drafter'
+import { createForgeAdapter, draftRelease, loadConfig } from 'release-drafter'
 
-const adapter: ForgeAdapter = createForgeAdapter({
+const adapter = createForgeAdapter({
   forge: 'github',
   token: process.env.GITHUB_TOKEN!,
 })
 
-// The application must implement configuration loading and normalization.
-declare function loadAndNormalizeReleaseDrafterConfig(): DraftReleaseConfig
-const config: DraftReleaseConfig = loadAndNormalizeReleaseDrafterConfig()
+const repository = {
+  owner: 'release-drafter',
+  name: 'release-drafter',
+  serverUrl: 'https://github.com',
+}
+const config = await loadConfig({ adapter, repository })
 
 const result = await draftRelease({
   adapter,
   config,
-  repository: {
-    owner: 'release-drafter',
-    name: 'release-drafter',
-    serverUrl: 'https://github.com',
-  },
+  repository,
   input: {
     publish: false,
     dryRun: true,
@@ -313,21 +317,81 @@ forge-neutral:
 
 - `adapter` is an injected `ForgeAdapter`. It supplies repository, change, ref,
   and release operations for the forge.
-- `config` must be a fully parsed `DraftReleaseConfig`. The caller or runtime
-  must load YAML, apply configuration inheritance, and normalize the raw
-  configuration.
+- `config` is a fully parsed `DraftReleaseConfig`. Use the standard `loadConfig`
+  helper or supply your own parsed configuration.
 - `input` selects the comparison base and the operation mode. The modes are dry
   run, draft, and publish.
 - `repository` identifies the target. The package does not read the target from
   GitHub Actions state.
 - `logger` is optional. Omitting it uses a no-op logger.
 
+`loadConfig(options)` loads `.github/release-drafter.yml` from the repository's
+default branch through the supplied adapter. It supports the same YAML/JSON
+files, `_extends` chains, merge strategies, and `.github` repository fallback
+as the CLI. It validates the composed configuration, applies defaults, and
+normalizes categories, replacer expressions, and change grouping.
+
+Use `target` to select another repository configuration or a local
+`file:relative/path` target. `ref` selects the branch or ref used to load the
+configuration and supplies the default release commitish. `cwd` sets the base
+directory for local files; it defaults to the current working directory. Local
+paths and their symlink targets must stay within that directory. Repository
+configurations cannot extend local files. `overrides` applies common config
+values, such as `commitish`, `prerelease`, and `latest`, after inheritance.
+`logger` is optional and defaults to a no-op logger.
+
+```ts
+const config = await loadConfig({
+  adapter,
+  repository,
+  target: 'file:release-drafter.yml',
+  ref: 'main',
+  overrides: { prerelease: true, latest: false },
+})
+```
+
+The bundled adapters returned by `createForgeAdapter` support configuration
+loading. A custom `RepositoryConfigReader` can provide `getDefaultBranch` and
+`getRepositoryConfig` for another forge or storage layer. Applications that
+already load and normalize configuration can pass their `DraftReleaseConfig`
+directly to `draftRelease`.
+
 `DraftReleaseResult` contains the forge-neutral release plan and normalized
 release payload. If the adapter writes a release, the result also contains the
 created or updated release.
+
+`DraftReleaseResult.labels` contains the unique, sorted labels matched by
+successful configuration conditions on included PRs, including in dry-run mode.
+It respects compound title/path predicates and category exclusivity. It is an
+empty array when no configured labels match.
 
 Importing `release-drafter` does not start the CLI, read environment variables,
 or perform network requests.
 
 `createForgeAdapter(options)` creates the bundled `github`, `gitea`, `forgejo`,
 and `gitlab` adapters. The programmatic API requires an explicit token.
+
+## Proxies and custom fetch
+
+The CLI and bundled adapters use the runtime's built-in `globalThis.fetch` by
+default. Configure proxy support in the runtime. With Node.js 24, enable
+[environment proxy support](https://nodejs.org/docs/latest-v24.x/api/cli.html#node_use_env_proxy1)
+when starting the process:
+
+```sh
+NODE_USE_ENV_PROXY=1 HTTPS_PROXY=http://proxy.example.com:8080 \
+  NO_PROXY=localhost,127.0.0.1 npx release-drafter owner/repo --dry-run
+```
+
+For the programmatic API, pass a custom `fetch` to `createForgeAdapter` when
+your application manages networking itself:
+
+```ts
+const adapter = createForgeAdapter({
+  forge: 'github',
+  token: process.env.GITHUB_TOKEN!,
+  fetch: customFetch,
+})
+```
+
+Release Drafter does not install a proxy dispatcher or change the global fetch.

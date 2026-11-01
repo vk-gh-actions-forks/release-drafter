@@ -4,7 +4,8 @@ const { coreDraftRelease } = vi.hoisted(() => ({
   coreDraftRelease: vi.fn(),
 }))
 
-vi.mock('@release-drafter/core', () => ({
+vi.mock('@release-drafter/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@release-drafter/core')>()),
   draftRelease: coreDraftRelease,
   noopLogger: {
     debug() {},
@@ -15,6 +16,7 @@ vi.mock('@release-drafter/core', () => ({
 }))
 
 import {
+  type BundledForgeAdapter,
   type CreateForgeAdapterOptions,
   createForgeAdapter,
   type DraftReleaseConfig,
@@ -91,6 +93,7 @@ const options: DraftReleaseOptions = {
 }
 
 const result: DraftReleaseResult = {
+  labels: ['api/user'],
   plan: { action: 'dry-run', releasePayload: payload },
   releasePayload: payload,
 }
@@ -152,7 +155,9 @@ describe('createForgeAdapter', () => {
     expectTypeOf(createForgeAdapter)
       .parameter(0)
       .toEqualTypeOf<CreateForgeAdapterOptions>()
-    expectTypeOf(createForgeAdapter).returns.toEqualTypeOf<ForgeAdapter>()
+    expectTypeOf(
+      createForgeAdapter,
+    ).returns.toEqualTypeOf<BundledForgeAdapter>()
 
     const github = {
       forge: 'github',
@@ -209,34 +214,31 @@ describe('createForgeAdapter', () => {
       header: 'private-token',
       authorization: 'facade-token',
     },
-  ] as const)('wires the default $forge endpoint and authentication', async ({
-    forge,
-    draftReleases,
-    url,
-    header,
-    authorization,
-  }) => {
-    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
-      expect(String(input)).toBe(url)
-      expect(new Headers(init?.headers).get(header)).toBe(authorization)
-      return new Response('[]', {
-        status: 200,
-        headers: {
-          'content-type': 'application/json',
-          'x-total': '0',
-        },
+  ] as const)(
+    'wires the default $forge endpoint and authentication',
+    async ({ forge, draftReleases, url, header, authorization }) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+        expect(String(input)).toBe(url)
+        expect(new Headers(init?.headers).get(header)).toBe(authorization)
+        return new Response('[]', {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-total': '0',
+          },
+        })
       })
-    })
-    const created = createForgeAdapter({
-      forge,
-      token: 'facade-token',
-      fetch,
-    })
+      const created = createForgeAdapter({
+        forge,
+        token: 'facade-token',
+        fetch,
+      })
 
-    expect(created.capabilities.draftReleases).toBe(draftReleases)
-    await expect(created.listReleases({ repository })).resolves.toEqual([])
-    expect(fetch).toHaveBeenCalledOnce()
-  })
+      expect(created.capabilities.draftReleases).toBe(draftReleases)
+      await expect(created.listReleases({ repository })).resolves.toEqual([])
+      expect(fetch).toHaveBeenCalledOnce()
+    },
+  )
 
   it.each([
     {
@@ -247,21 +249,21 @@ describe('createForgeAdapter', () => {
       forge: 'forgejo',
       expectedCommitish: 'refs/heads/main',
     },
-  ] as const)('selects $forge qualified-ref behavior', async ({
-    forge,
-    expectedCommitish,
-  }) => {
-    const created = createForgeAdapter({
-      forge,
-      token: 'facade-token',
-      fetch: vi.fn(),
-    })
+  ] as const)(
+    'selects $forge qualified-ref behavior',
+    async ({ forge, expectedCommitish }) => {
+      const created = createForgeAdapter({
+        forge,
+        token: 'facade-token',
+        fetch: vi.fn(),
+      })
 
-    await expect(
-      created.resolveCommitish({
-        repository,
-        commitish: 'refs/heads/main',
-      }),
-    ).resolves.toBe(expectedCommitish)
-  })
+      await expect(
+        created.resolveCommitish({
+          repository,
+          commitish: 'refs/heads/main',
+        }),
+      ).resolves.toBe(expectedCommitish)
+    },
+  )
 })

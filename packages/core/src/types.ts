@@ -177,8 +177,22 @@ export type ParsedCategory =
       when: ParsedChangeCondition[]
     }
 
-export type ParsedReplacer = Omit<Config['replacers'][number], 'search'> & {
-  search: RegExp
+type ConfiguredReplacer = Config['replacers'][number]
+export type ParsedReplacer =
+  | Extract<ConfiguredReplacer, { section: string }>
+  | (Omit<Extract<ConfiguredReplacer, { search: string }>, 'search'> & {
+      search: RegExp
+    })
+
+export type ParsedGroupChange = Omit<
+  Config['group-changes'][number],
+  'pattern'
+> & {
+  pattern: RegExp
+  /** Names of the capture groups that build the grouping key: `group` and every `group_<name>`. */
+  groupNames: string[]
+  /** Names of the capture groups exposed as `$FIRST_<NAME>` and `$LAST_<NAME>`, without the grouping ones. */
+  captureNames: string[]
 }
 
 export type ParsedConfig = Omit<
@@ -193,12 +207,16 @@ export type ParsedConfig = Omit<
   | 'prerelease'
   | 'replacers'
   | 'categories'
+  | 'group-changes'
+  | 'change-authors-exclude-bots'
 > & {
   commitish: string
   latest: boolean
   prerelease: boolean
   replacers: ParsedReplacer[]
   categories: ParsedCategory[]
+  'group-changes'?: ParsedGroupChange[]
+  'change-authors-exclude-bots'?: boolean
 }
 
 export type ReleaseInput = {
@@ -247,4 +265,6 @@ export type DraftReleaseResult = {
   plan: ReleasePlan
   release?: Release
   releasePayload: ReleasePayload
+  /** Unique, sorted labels matched by configuration conditions on included pull requests. */
+  labels: string[]
 }
